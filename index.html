@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLI Ecosystem Store</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        accent: '#10b981'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-darkbg text-slate-100 min-h-screen flex flex-col justify-between font-mono">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 p-6">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wider text-accent">&gt; CLI_ECOSYSTEM_STORE</h1>
+            <span id="authStatus"
+                class="text-xs bg-slate-900 text-slate-400 border border-slate-700 px-3 py-1 rounded-full">Credito: 0
+                Gettoni</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto p-6 w-full flex-grow space-y-8 my-6">
+
+        <!-- Sezione Riscatto Codice -->
+        <div class="bg-cardbg border border-slate-800 rounded-xl p-6 shadow-xl max-w-xl mx-auto">
+            <h2 class="text-xl font-bold mb-2 text-white">Riscatta il tuo codice</h2>
+            <p class="text-xs text-slate-400 mb-4">Inserisci il codice generato dalla slot CLI per ricaricare il tuo
+                credito gettoni nello store.</p>
+
+            <div class="flex gap-3">
+                <input type="text" id="codigoInput" placeholder="CLI-GT-XXXXXC"
+                    class="flex-grow bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-accent uppercase tracking-widest text-sm font-bold">
+                <button onclick="riscattaCodice()"
+                    class="bg-accent hover:bg-emerald-600 text-slate-950 font-bold px-6 py-2 rounded-lg text-sm transition-all shadow-lg shadow-emerald-900/20">
+                    RISCATTA
+                </button>
+            </div>
+            <div id="resultBox" class="mt-4 hidden p-3 rounded-lg border text-xs"></div>
+        </div>
+
+        <!-- Catalogo Prodotti Dinamico -->
+        <div>
+            <h2 class="text-lg font-bold mb-4 text-slate-200 border-b border-slate-800 pb-2">📦 Catalogo Risorse
+                Disponibili</h2>
+            <div id="prodottiGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Verrà popolato dinamicamente via JavaScript -->
+                <p class="text-xs text-slate-500">Caricamento prodotti dal server...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500 space-y-1">
+        <p>Zero denaro reale • Nessun acquisto in-app • Solo logica pura</p>
+        <p class="text-slate-400">C++ Core & Python Server | Ethical Gamification</p>
+    </footer>
+
+    <!-- Script di gestione catalogo, prezzi e validazione -->
+    <script>
+        let gettoniUtente = parseInt(localStorage.getItem('gettoniUtente') || '0', 10);
+        aggiornaStatoCredito();
+
+        function validaChecksum(codice) {
+            const pulito = codice.replace("CLI-", "");
+            const primoTrattino = pulito.indexOf("-");
+            if (primoTrattino === -1) return false;
+
+            const strGettoni = pulito.substring(0, primoTrattino);
+            const resto = pulito.substring(primoTrattino + 1);
+
+            if (resto.length < 2) return false;
+
+            const base = resto.substring(0, resto.length - 1);
+            const checksumFornita = resto.substring(resto.length - 1);
+
+            const datiGrezzi = base + strGettoni;
+            let checksumVal = 0;
+            for (let i = 0; i < datiGrezzi.length; i++) {
+                checksumVal += datiGrezzi.charCodeAt(i);
+            }
+            const esadecimali = "0123456789ABCDEF";
+            const checksumCalcolata = esadecimali[checksumVal % 16];
+
+            return checksumFornita === checksumCalcolata;
+        }
+
+        function estraiGettoni(codice) {
+            const pulito = codice.replace("CLI-", "");
+            const primoTrattino = pulito.indexOf("-");
+            return parseInt(pulito.substring(0, primoTrattino), 10);
+        }
+
+        async function caricaProdotti() {
+            try {
+                const response = await fetch('/api/prodotti');
+                const prodotti = await response.json();
+                const grid = document.getElementById('prodottiGrid');
+
+                if (prodotti.length === 0) {
+                    grid.innerHTML = `<p class="text-xs text-slate-500">Nessun file trovato nelle cartelle <code>librerie</code> o <code>programmi</code>.</p>`;
+                    return;
+                }
+
+                grid.innerHTML = '';
+                prodotti.forEach((prod) => {
+                    const costoProdotto = prod.prezzo; // Legge il prezzo impostato nel Python!
+                    const haAbbastanzaGettoni = gettoniUtente >= costoProdotto;
+
+                    grid.innerHTML += `
+                        <div class="bg-cardbg border border-slate-800 rounded-lg p-5 flex flex-col justify-between shadow-md">
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-[10px] bg-slate-800 text-accent px-2 py-0.5 rounded border border-slate-700 uppercase tracking-wider">${prod.categoria}</span>
+                                    <span class="text-xs font-bold text-amber-400 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded">💎 ${costoProdotto} Gettoni</span>
+                                </div>
+                                <h3 class="font-bold text-base mt-2 text-white">${prod.nome}</h3>
+                            </div>
+                            <div class="mt-4 pt-4 border-t border-slate-800/60 flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Disponibilità: <span class="${haAbbastanzaGettoni ? 'text-emerald-400 font-bold' : 'text-rose-400'}">${haAbbastanzaGettoni ? 'Sbloccabile' : 'Credito Insufficiente'}</span></span>
+                                <button onclick="acquistaErica('${prod.url}', ${costoProdotto})" 
+                                   class="${haAbbastanzaGettoni ? 'bg-accent text-slate-950 hover:bg-emerald-600 cursor-pointer' : 'bg-slate-800 text-slate-500 pointer-events-none'} text-xs font-bold px-4 py-2 rounded transition-all">
+                                   ${haAbbastanzaGettoni ? 'ACQUISTA / DOWNLOAD' : 'BLOCCATO'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) {
+                console.error("Errore caricamento prodotti:", err);
+            }
+        }
+
+        function acquistaErica(url, costo) {
+            if (gettoniUtente < costo) {
+                alert("Non hai abbastanza gettoni!");
+                return;
+            }
+
+            // Sottrae i gettoni dal saldo dell'utente
+            gettoniUtente -= costo;
+            localStorage.setItem('gettoniUtente', gettoniUtente);
+            aggiornaStatoCredito();
+
+            // Avvia il download aprendo l'URL o creando un elemento link temporaneo
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Ricarica la griglia per aggiornare i pulsanti in base al nuovo saldo
+            caricaProdotti();
+        }
+
+        function riscattaCodice() {
+            const inputField = document.getElementById('codigoInput');
+            const resultBox = document.getElementById('resultBox');
+            const input = inputField.value.trim().toUpperCase();
+
+            resultBox.classList.remove('hidden');
+
+            if (!input.startsWith("CLI-")) {
+                resultBox.className = "mt-4 p-3 rounded-lg border bg-rose-950/40 border-rose-800 text-rose-300 text-xs";
+                resultBox.innerHTML = "[ERRORE] Il codice deve iniziare con CLI-.";
+                return;
+            }
+
+            if (!validaChecksum(input)) {
+                resultBox.className = "mt-4 p-3 rounded-lg border bg-rose-950/40 border-rose-800 text-rose-300 text-xs";
+                resultBox.innerHTML = "[ERRORE] Codice falso o checksum non valida!";
+                return;
+            }
+
+            let codiciUsati = JSON.parse(localStorage.getItem('codiciUsati') || '[]');
+            if (codiciUsati.includes(input)) {
+                resultBox.className = "mt-4 p-3 rounded-lg border bg-amber-950/40 border-amber-800 text-amber-300 text-xs";
+                resultBox.innerHTML = "[ATTENZIONE] Questo codice è già stato utilizzato!";
+                return;
+            }
+
+            codiciUsati.push(input);
+            localStorage.setItem('codiciUsati', JSON.stringify(codiciUsati));
+
+            const gettoniAggiunti = estraiGettoni(input);
+            gettoniUtente += gettoniAggiunti;
+            localStorage.setItem('gettoniUtente', gettoniUtente);
+
+            aggiornaStatoCredito();
+
+            resultBox.className = "mt-4 p-3 rounded-lg border bg-emerald-950/40 border-emerald-800 text-emerald-300 text-xs";
+            resultBox.innerHTML = `[SUCCESSO] Aggiunti <strong>+${gettoniAggiunti} gettoni</strong> al tuo account!`;
+
+            caricaProdotti();
+        }
+
+        function aggiornaStatoCredito() {
+            const statusEl = document.getElementById('authStatus');
+            statusEl.className = "text-xs bg-emerald-950/40 text-emerald-400 border border-emerald-800 px-3 py-1 rounded-full font-bold";
+            statusEl.innerText = `Credito: ${gettoniUtente} Gettoni`;
+        }
+
+        caricaProdotti();
+    </script>
+</body>
+
+</html>
